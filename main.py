@@ -29,6 +29,7 @@
 # Done by avinash from here - Implementing GUI instead of CLI.
 # Modified by divyanshu - adding watermarks, and making entire system newish
 #  Auto update feature and some more are left to do....
+
 import tkinter as tk
 from tkinter import messagebox, ttk
 import re
@@ -37,7 +38,7 @@ import os
 import requests
 from io import BytesIO
 from PIL import Image, ImageTk
-
+import threading
 
 # ============================================================
 # APPLICATION VERSION
@@ -126,6 +127,15 @@ MUTED = "#94a3b8"
 
 BORDER = "#263449"
 
+# changes by AVinash ramteke
+# ============================================================
+# LOADING STATE
+# ============================================================
+
+loading_window = None
+loading_running = False
+loading_canvas = None
+loading_angle = 0
 
 # ============================================================
 # APPLICATION STATE
@@ -659,28 +669,339 @@ def refresh_history():
             )
         )
 
+# loading animation Added by the aVINASH
+# ============================================================
+# LOADING ANIMATION
+# ============================================================
+
+def show_loading():
+    global loading_window
+    global loading_running
+    global loading_canvas
+    global loading_angle
+
+    if loading_window is not None:
+        return
+
+    loading_running = True
+    loading_angle = 0
+
+    loading_window = tk.Toplevel(root)
+
+    loading_window.title("Processing")
+    loading_window.geometry("180x150")
+    loading_window.resizable(False, False)
+    loading_window.configure(bg=BG)
+
+    # Keep loading window above main window
+    loading_window.transient(root)
+    loading_window.grab_set()
+
+    # Center loading window
+    root.update_idletasks()
+
+    root_x = root.winfo_x()
+    root_y = root.winfo_y()
+    root_width = root.winfo_width()
+    root_height = root.winfo_height()
+
+    x = root_x + (root_width - 180) // 2
+    y = root_y + (root_height - 150) // 2
+
+    loading_window.geometry(
+        f"180x150+{x}+{y}"
+    )
+
+    loading_canvas = tk.Canvas(
+        loading_window,
+        width=180,
+        height=100,
+        bg=BG,
+        highlightthickness=0
+    )
+
+    loading_canvas.pack()
+
+    loading_canvas.create_text(
+        90,
+        82,
+        text="Processing...",
+        fill=TEXT,
+        font=(
+            "Segoe UI",
+            9
+        )
+    )
+
+    animate_loading()
+
+
+def animate_loading():
+    global loading_angle
+
+    if not loading_running:
+        return
+
+    if loading_canvas is None:
+        return
+
+    loading_canvas.delete("spinner")
+
+    # Spinner center
+    cx = 90
+    cy = 38
+    radius = 22
+
+    # Draw rotating arc
+    loading_canvas.create_arc(
+        cx - radius,
+        cy - radius,
+        cx + radius,
+        cy + radius,
+        start=loading_angle,
+        extent=80,
+        outline=BLUE_HOVER,
+        width=5,
+        style="arc",
+        tags="spinner"
+    )
+
+    loading_angle = (
+        loading_angle + 20
+    ) % 360
+
+    root.after(
+        50,
+        animate_loading
+    )
+
+
+def hide_loading():
+    global loading_window
+    global loading_running
+    global loading_canvas
+
+    loading_running = False
+
+    if loading_window is not None:
+        try:
+            loading_window.grab_release()
+        except Exception:
+            pass
+
+        try:
+            loading_window.destroy()
+        except Exception:
+            pass
+
+    loading_window = None
+    loading_canvas = None
+
+
+# # ============================================================
+# # CONVERT ALL
+# # ============================================================
+
+# def convert_links():
+
+#     global last_proxy_url
+
+#     raw_text = input_text.get(
+#         "1.0",
+#         tk.END
+#     ).strip()
+
+#     if not raw_text:
+
+#         messagebox.showwarning(
+#             "No Links",
+#             "Please paste at least one Google Drive link."
+#         )
+
+#         return
+
+#     links = [
+#         line.strip()
+#         for line in raw_text.splitlines()
+#         if line.strip()
+#     ]
+
+#     success_count = 0
+#     error_count = 0
+
+#     last_valid_proxy = ""
+
+#     for index, drive_link in enumerate(
+#         links,
+#         start=1
+#     ):
+
+#         # ----------------------------------------------------
+#         # ORIGINAL CONVERSION LOGIC
+#         # ----------------------------------------------------
+
+#         result = convert_drive_link_to_proxy(
+#             drive_link
+#         )
+
+#         if result.startswith(
+#             "Invalid Google Drive link"
+#         ):
+
+#             add_history(
+#                 drive_link,
+#                 result,
+#                 "INVALID"
+#             )
+
+#             error_count += 1
+
+#             continue
+
+#         proxy_url = result
+
+#         last_valid_proxy = proxy_url
+
+#         # ----------------------------------------------------
+#         # DOWNLOAD IMAGE
+#         # ----------------------------------------------------
+
+#         try:
+
+#             output_path = download_image(
+#                 proxy_url,
+#                 drive_link,
+#                 index
+#             )
+
+#             add_history(
+#                 drive_link,
+#                 proxy_url,
+#                 "SUCCESS",
+#                 output_path
+#             )
+
+#             success_count += 1
+
+#         except Exception as error:
+
+#             add_history(
+#                 drive_link,
+#                 proxy_url,
+#                 "ERROR",
+#                 str(error)
+#             )
+
+#             error_count += 1
+
+#     # --------------------------------------------------------
+#     # LAST PROXY URL
+#     # --------------------------------------------------------
+
+#     if last_valid_proxy:
+
+#         last_proxy_url = (
+#             last_valid_proxy
+#         )
+
+#         output_entry.delete(
+#             0,
+#             tk.END
+#         )
+
+#         output_entry.insert(
+#             0,
+#             last_proxy_url
+#         )
+
+#     # --------------------------------------------------------
+#     # RESULT
+#     # --------------------------------------------------------
+
+#     if (
+#         success_count > 0
+#         and error_count == 0
+#     ):
+
+#         messagebox.showinfo(
+#             "Conversion Complete",
+#             f"Successfully processed "
+#             f"{success_count} image(s).\n\n"
+#             f"Images saved in:\n"
+#             f"{WATERMARK_DIR}"
+#         )
+
+#     elif success_count > 0:
+
+#         messagebox.showwarning(
+#             "Partially Complete",
+#             f"Successful: {success_count}\n"
+#             f"Failed: {error_count}\n\n"
+#             f"Check Recent Conversions for details."
+#         )
+
+#     else:
+
+#         messagebox.showerror(
+#             "Conversion Failed",
+#             "No image could be processed.\n\n"
+#             "Make sure the Google Drive files "
+#             "are public and accessible."
+#         )
+
+
+#  COMMITE CHANGES BY AVINASH RAMTEKE
 
 # ============================================================
 # CONVERT ALL
 # ============================================================
 
 def convert_links():
-
-    global last_proxy_url
-
     raw_text = input_text.get(
         "1.0",
         tk.END
     ).strip()
 
     if not raw_text:
-
         messagebox.showwarning(
             "No Links",
             "Please paste at least one Google Drive link."
         )
-
         return
+
+    # Start loading animation
+    show_loading()
+
+    # Disable buttons while processing
+    convert_button.configure(
+        state="disabled"
+    )
+
+    paste_button.configure(
+        state="disabled"
+    )
+
+    clear_button.configure(
+        state="disabled"
+    )
+
+    folder_button.configure(
+        state="disabled"
+    )
+
+    # Run conversion in background
+    thread = threading.Thread(
+        target=process_conversion,
+        args=(raw_text,),
+        daemon=True
+    )
+
+    thread.start()
+
+
+def process_conversion(raw_text):
+
+    global last_proxy_url
 
     links = [
         line.strip()
@@ -690,7 +1011,6 @@ def convert_links():
 
     success_count = 0
     error_count = 0
-
     last_valid_proxy = ""
 
     for index, drive_link in enumerate(
@@ -710,18 +1030,20 @@ def convert_links():
             "Invalid Google Drive link"
         ):
 
-            add_history(
-                drive_link,
-                result,
-                "INVALID"
+            root.after(
+                0,
+                lambda link=drive_link, res=result:
+                add_history(
+                    link,
+                    res,
+                    "INVALID"
+                )
             )
 
             error_count += 1
-
             continue
 
         proxy_url = result
-
         last_valid_proxy = proxy_url
 
         # ----------------------------------------------------
@@ -736,25 +1058,82 @@ def convert_links():
                 index
             )
 
-            add_history(
-                drive_link,
-                proxy_url,
-                "SUCCESS",
-                output_path
+            root.after(
+                0,
+                lambda link=drive_link,
+                proxy=proxy_url,
+                path=output_path:
+                add_history(
+                    link,
+                    proxy,
+                    "SUCCESS",
+                    path
+                )
             )
 
             success_count += 1
 
         except Exception as error:
 
-            add_history(
-                drive_link,
-                proxy_url,
-                "ERROR",
-                str(error)
+            root.after(
+                0,
+                lambda link=drive_link,
+                proxy=proxy_url,
+                err=str(error):
+                add_history(
+                    link,
+                    proxy,
+                    "ERROR",
+                    err
+                )
             )
 
             error_count += 1
+
+    # Send result back to Tkinter main thread
+    root.after(
+        0,
+        lambda: finish_conversion(
+            success_count,
+            error_count,
+            last_valid_proxy
+        )
+    )
+
+
+def finish_conversion(
+    success_count,
+    error_count,
+    last_valid_proxy
+):
+
+    global last_proxy_url
+
+    # --------------------------------------------------------
+    # STOP LOADING
+    # --------------------------------------------------------
+
+    hide_loading()
+
+    # --------------------------------------------------------
+    # ENABLE BUTTONS
+    # --------------------------------------------------------
+
+    convert_button.configure(
+        state="normal"
+    )
+
+    paste_button.configure(
+        state="normal"
+    )
+
+    clear_button.configure(
+        state="normal"
+    )
+
+    folder_button.configure(
+        state="normal"
+    )
 
     # --------------------------------------------------------
     # LAST PROXY URL
@@ -762,9 +1141,7 @@ def convert_links():
 
     if last_valid_proxy:
 
-        last_proxy_url = (
-            last_valid_proxy
-        )
+        last_proxy_url = last_valid_proxy
 
         output_entry.delete(
             0,
@@ -810,7 +1187,6 @@ def convert_links():
             "Make sure the Google Drive files "
             "are public and accessible."
         )
-
 
 # ============================================================
 # COPY
