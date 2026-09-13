@@ -1,3 +1,7 @@
 # Assets and software ignoration
 build/
 dist/
+
+# Ignore Zips
+build.zip
+dist.zip
