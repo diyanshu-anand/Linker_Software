@@ -46,7 +46,503 @@ import threading
 
 APP_VERSION = "1.0.0"
 
+# ============================================================
+# UPDATE CONFIGURATION
+# ============================================================
 
+UPDATE_CHECK_URL = (
+    "https://raw.githubusercontent.com/"
+    "avinashramteke5/"
+    "LINKER-SOFTWARE/"
+    "main/update.json"
+)
+
+
+# ============================================================
+# UPDATE SYSTEM
+# ============================================================
+
+def version_to_tuple(version):
+    """
+    Converts version string into comparable tuple.
+
+    Example:
+    1.2.3 -> (1, 2, 3)
+    """
+
+    try:
+        return tuple(
+            int(part)
+            for part in version.strip().split(".")
+        )
+    except ValueError:
+        return (0, 0, 0)
+
+
+def is_new_version_available(latest_version):
+    """
+    Checks whether latest version is newer
+    than the currently installed version.
+    """
+
+    return (
+        version_to_tuple(latest_version)
+        > version_to_tuple(APP_VERSION)
+    )
+
+
+def check_for_updates():
+    """
+    Checks GitHub for the latest application version.
+    """
+
+    try:
+
+        response = requests.get(
+            UPDATE_CHECK_URL,
+            timeout=5
+        )
+
+        response.raise_for_status()
+
+        update_data = response.json()
+
+        latest_version = update_data.get(
+            "version",
+            APP_VERSION
+        )
+
+        download_url = update_data.get(
+            "download_url",
+            ""
+        )
+
+        release_notes = update_data.get(
+            "release_notes",
+            ""
+        )
+
+        if is_new_version_available(
+            latest_version
+        ):
+
+            root.after(
+                0,
+                lambda: show_update_popup(
+                    latest_version,
+                    download_url,
+                    release_notes
+                )
+            )
+
+    except Exception as error:
+
+        print(
+            "Update check failed:",
+            error
+        )
+
+
+    # --------------------------------------------------------
+    # SHOW UPDATE POPUP
+    # --------------------------------------------------------
+def show_update_popup(
+    latest_version,
+    download_url,
+    release_notes
+):
+    """
+    Displays update notification.
+    """
+
+    update_window = tk.Toplevel(root)
+
+    update_window.title(
+        "Update Available"
+    )
+
+    update_window.geometry(
+        "430x300"
+    )
+
+    update_window.resizable(
+        False,
+        False
+    )
+
+    update_window.configure(
+        bg="#070d18"
+    )
+
+    update_window.transient(
+        root
+    )
+
+    update_window.grab_set()
+
+
+    # --------------------------------------------------------
+    # TITLE
+    # --------------------------------------------------------
+
+    title = tk.Label(
+        update_window,
+        text="New Update Available",
+        font=(
+            "Segoe UI",
+            16,
+            "bold"
+        ),
+        fg="white",
+        bg="#070d18"
+    )
+
+    title.pack(
+        pady=(25, 10)
+    )
+
+
+    # --------------------------------------------------------
+    # VERSION
+    # --------------------------------------------------------
+
+    version_text = tk.Label(
+        update_window,
+        text=(
+            f"Current Version : v{APP_VERSION}\n"
+            f"Latest Version  : v{latest_version}"
+        ),
+        font=(
+            "Segoe UI",
+            10
+        ),
+        fg="#cbd5e1",
+        bg="#070d18"
+    )
+
+    version_text.pack(
+        pady=5
+    )
+
+
+    # --------------------------------------------------------
+    # RELEASE NOTES
+    # --------------------------------------------------------
+
+    notes = tk.Label(
+        update_window,
+        text=release_notes,
+        font=(
+            "Segoe UI",
+            9
+        ),
+        fg="#94a3b8",
+        bg="#070d18",
+        wraplength=360,
+        justify="center"
+    )
+
+    notes.pack(
+        pady=10
+    )
+
+
+    # --------------------------------------------------------
+    # BUTTON FRAME
+    # --------------------------------------------------------
+
+    button_frame = tk.Frame(
+        update_window,
+        bg="#070d18"
+    )
+
+    button_frame.pack(
+        pady=15
+    )
+
+
+    # --------------------------------------------------------
+    # UPDATE BUTTON
+    # --------------------------------------------------------
+
+    update_button = tk.Button(
+        button_frame,
+        text="Update Now",
+        font=(
+            "Segoe UI",
+            9,
+            "bold"
+        ),
+        bg="#2563eb",
+        fg="white",
+        activebackground="#1d4ed8",
+        activeforeground="white",
+        relief="flat",
+        padx=20,
+        pady=8,
+        command=lambda: start_update(
+            update_window,
+            download_url
+        )
+    )
+
+    update_button.pack(
+        side="left",
+        padx=6
+    )
+
+
+    # --------------------------------------------------------
+    # LATER BUTTON
+    # --------------------------------------------------------
+
+    later_button = tk.Button(
+        button_frame,
+        text="Later",
+        font=(
+            "Segoe UI",
+            9
+        ),
+        bg="#1e293b",
+        fg="white",
+        activebackground="#334155",
+        activeforeground="white",
+        relief="flat",
+        padx=20,
+        pady=8,
+        command=update_window.destroy
+    )
+
+    later_button.pack(
+        side="left",
+        padx=6
+    )
+
+# --------------------------------------------------------
+# DOWNLOAD FUNCTION
+# --------------------------------------------------------
+def start_update(
+    update_window,
+    download_url
+):
+    """
+    Downloads the new application.
+    """
+
+    if not download_url:
+
+        messagebox.showerror(
+            "Update Error",
+            "Update download URL is not available."
+        )
+
+        return
+
+
+    update_window.destroy()
+
+
+    progress_window = tk.Toplevel(root)
+
+    progress_window.title(
+        "Updating LINKER SOFTWARE"
+    )
+
+    progress_window.geometry(
+        "420x180"
+    )
+
+    progress_window.resizable(
+        False,
+        False
+    )
+
+    progress_window.configure(
+        bg="#070d18"
+    )
+
+    progress_window.transient(
+        root
+    )
+
+
+    progress_label = tk.Label(
+        progress_window,
+        text="Downloading update...",
+        font=(
+            "Segoe UI",
+            10
+        ),
+        fg="white",
+        bg="#070d18"
+    )
+
+    progress_label.pack(
+        pady=(35, 10)
+    )
+
+
+    progress_bar = ttk.Progressbar(
+        progress_window,
+        orient="horizontal",
+        length=320,
+        mode="determinate"
+    )
+
+    progress_bar.pack(
+        pady=10
+    )
+
+
+    def download():
+
+        try:
+
+            response = requests.get(
+                download_url,
+                stream=True,
+                timeout=30
+            )
+
+            response.raise_for_status()
+
+
+            total_size = int(
+                response.headers.get(
+                    "content-length",
+                    0
+                )
+            )
+
+
+            downloaded = 0
+
+
+            update_file = os.path.join(
+                BASE_DIR,
+                "LinkerSoftware_new.exe"
+            )
+
+
+            with open(
+                update_file,
+                "wb"
+            ) as file:
+
+                for chunk in response.iter_content(
+                    chunk_size=8192
+                ):
+
+                    if chunk:
+
+                        file.write(
+                            chunk
+                        )
+
+                        downloaded += len(
+                            chunk
+                        )
+
+
+                        if total_size:
+
+                            percentage = (
+                                downloaded
+                                /
+                                total_size
+                                *
+                                100
+                            )
+
+                            root.after(
+                                0,
+                                lambda p=percentage:
+                                progress_bar.configure(
+                                    value=p
+                                )
+                            )
+
+
+            root.after(
+                0,
+                lambda:
+                finish_update(
+                    progress_window,
+                    update_file
+                )
+            )
+
+
+        except Exception as error:
+
+            root.after(
+                0,
+                lambda:
+                update_failed(
+                    progress_window,
+                    str(error)
+                )
+            )
+
+
+    threading.Thread(
+        target=download,
+        daemon=True
+    ).start()
+
+# ============================================================
+#   UPDATE COMPLETE SECTION
+# ============================================================
+
+def finish_update(
+    progress_window,
+    update_file
+):
+    """
+    Completes the update process.
+    """
+
+    progress_window.destroy()
+
+    messagebox.showinfo(
+        "Update Downloaded",
+        "The new version has been downloaded.\n\n"
+        "The application will now restart."
+    )
+
+    current_exe = os.path.abspath(
+        __file__
+    )
+
+    if current_exe.lower().endswith(
+        ".py"
+    ):
+
+        messagebox.showinfo(
+            "Development Mode",
+            "Update file downloaded successfully.\n\n"
+            "EXE auto-replacement will work when "
+            "the application is packaged as an EXE."
+        )
+
+        return
+
+
+def update_failed(
+    progress_window,
+    error_message
+):
+    """
+    Handles update errors.
+    """
+
+    progress_window.destroy()
+
+    messagebox.showerror(
+        "Update Failed",
+        "Could not download the update.\n\n"
+        f"Error: {error_message}"
+    )
 # ============================================================
 # ORIGINAL CONVERSION LOGIC
 # DO NOT CHANGE
@@ -2333,8 +2829,8 @@ footer.pack_propagate(
 footer_label = tk.Label(
     footer,
     text=(
-        "LINKER SOFTWARE  •  "
-        "Gauranga Creation"
+        "Researched, Engineered and Developed by Gauranga Creations • "
+         "© Belongs to GAURANGA CREATIONS"   
     ),
     font=(
         "Segoe UI",
@@ -2374,8 +2870,75 @@ root.bind(
 )
 
 
+
+
+# # ============================================================
+# # TEST UPDATE POPUP
+# # ============================================================
+
+def test_update_popup():
+    update_window = tk.Toplevel(root)
+    update_window.title("Update Available")
+    update_window.geometry("420x250")
+    update_window.resizable(False, False)
+    update_window.configure(bg="#070d18")
+
+    tk.Label(
+        update_window,
+        text="New Update Available",
+        font=("Segoe UI", 18, "bold"),
+        fg="white",
+        bg="#070d18"
+    ).pack(pady=(30, 15))
+
+    tk.Label(
+        update_window,
+        text="A new version of LINKER SOFTWARE is available.",
+        font=("Segoe UI", 10),
+        fg="#b8c2d1",
+        bg="#070d18"
+    ).pack()
+
+    tk.Label(
+        update_window,
+        text="Current Version : v1.0.0\nLatest Version  : v1.1.0",
+        font=("Segoe UI", 10),
+        fg="white",
+        bg="#070d18"
+    ).pack(pady=15)
+
+    tk.Button(
+        update_window,
+        text="Update Now",
+        font=("Segoe UI", 10, "bold"),
+        command=lambda: print("UPDATE BUTTON WORKING"),
+        padx=20
+    ).pack(side="left", padx=(90, 10))
+
+    tk.Button(
+        update_window,
+        text="Later",
+        font=("Segoe UI", 10),
+        command=update_window.destroy,
+        padx=20
+    ).pack(side="left")
+
+
+# Test popup after 2 seconds
+root.after(2000, test_update_popup)
+
+root.mainloop()
 # ============================================================
 # START APPLICATION
 # ============================================================
 
-root.mainloop()
+
+# root.after(
+#     2000,
+#     lambda: threading.Thread(
+#         target=check_for_updates,
+#         daemon=True
+#     ).start()
+# )
+
+# root.mainloop()
