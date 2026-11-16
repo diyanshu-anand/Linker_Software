@@ -39,6 +39,8 @@ import requests
 from io import BytesIO
 from PIL import Image, ImageTk
 import threading
+import sys
+import subprocess
 
 # ============================================================
 # APPLICATION VERSION
@@ -52,8 +54,8 @@ APP_VERSION = "1.0.0"
 
 UPDATE_CHECK_URL = (
     "https://raw.githubusercontent.com/"
-    "avinashramteke5/"
-    "LINKER-SOFTWARE/"
+    "diyanshu-anand/"
+    "Linker_Software/"
     "main/update.json"
 )
 
@@ -494,6 +496,62 @@ def start_update(
 #   UPDATE COMPLETE SECTION
 # ============================================================
 
+# def finish_update(
+#     progress_window,
+#     update_file
+# ):
+#     """
+#     Completes the update process.
+#     """
+
+#     progress_window.destroy()
+
+#     messagebox.showinfo(
+#         "Update Downloaded",
+#         "The new version has been downloaded.\n\n"
+#         "The application will now restart."
+#     )
+
+#     current_exe = os.path.abspath(
+#         __file__
+#     )
+
+#     if current_exe.lower().endswith(
+#         ".py"
+#     ):
+
+#         messagebox.showinfo(
+#             "Development Mode",
+#             "Update file downloaded successfully.\n\n"
+#             "EXE auto-replacement will work when "
+#             "the application is packaged as an EXE."
+#         )
+
+#         return
+
+
+# def update_failed(
+#     progress_window,
+#     error_message
+# ):
+#     """
+#     Handles update errors.
+#     """
+
+#     progress_window.destroy()
+
+#     messagebox.showerror(
+#         "Update Failed",
+#         "Could not download the update.\n\n"
+#         f"Error: {error_message}"
+#     )
+
+
+
+# NEW CODE ADDED BELOW BT AVINASH RAMTEKE
+# ============================================================
+# AUTO UPDATE FROM GITHUB 
+# ============================================================
 def finish_update(
     progress_window,
     update_file
@@ -504,45 +562,64 @@ def finish_update(
 
     progress_window.destroy()
 
-    messagebox.showinfo(
-        "Update Downloaded",
-        "The new version has been downloaded.\n\n"
-        "The application will now restart."
-    )
-
-    current_exe = os.path.abspath(
-        __file__
-    )
-
-    if current_exe.lower().endswith(
-        ".py"
+    # Development mode
+    if not getattr(
+        sys,
+        "frozen",
+        False
     ):
-
         messagebox.showinfo(
             "Development Mode",
             "Update file downloaded successfully.\n\n"
             "EXE auto-replacement will work when "
             "the application is packaged as an EXE."
         )
-
         return
 
+    try:
+        # Current running EXE ka path
+        current_exe = sys.executable
 
-def update_failed(
-    progress_window,
-    error_message
-):
-    """
-    Handles update errors.
-    """
+        # updater.py ka path
+        updater_file = os.path.join(
+            os.path.dirname(current_exe),
+            "updater.exe"
+        )
 
-    progress_window.destroy()
+        if not os.path.exists(
+            updater_file
+        ):
+            messagebox.showerror(
+                "Updater Missing",
+                "updater.exe was not found.\n\n"
+                "Please make sure updater.exe is "
+                "present beside the main application."
+            )
+            return
 
-    messagebox.showerror(
-        "Update Failed",
-        "Could not download the update.\n\n"
-        f"Error: {error_message}"
-    )
+        # Updater start karo
+        subprocess.Popen(
+            [
+                updater_file,
+                current_exe,
+                update_file
+            ],
+            cwd=os.path.dirname(
+                current_exe
+            )
+        )
+
+        # Main application close karo
+        root.destroy()
+
+    except Exception as error:
+        messagebox.showerror(
+            "Update Failed",
+            "Could not start the updater.\n\n"
+            f"Error: {error}"
+        )
+
+
 # ============================================================
 # ORIGINAL CONVERSION LOGIC
 # DO NOT CHANGE
@@ -591,10 +668,17 @@ BACKGROUND_LOGO_PATH = os.path.join(
     "logo.png"
 )
 
-# Downloaded images
+# Downloaded images - Windows AppData storage
+APPDATA_DIR = os.environ.get("LOCALAPPDATA") or os.path.join(
+    os.path.expanduser("~"),
+    "AppData",
+    "Local"
+)
+
 WATERMARK_DIR = os.path.join(
-    BASE_DIR,
-    "watermarked"
+    APPDATA_DIR,
+    "LinkerSoftware",
+    "Images"
 )
 
 os.makedirs(
@@ -633,6 +717,18 @@ loading_running = False
 loading_canvas = None
 loading_angle = 0
 
+# OLD CODE
+# ============================================================
+# APPLICATION STATE
+# # ============================================================
+
+# history_data = []
+# last_proxy_url = ""
+
+# background_logo_image = None
+# background_logo_tk = None
+
+# NEW CODE UPDATED BY THE AVINASH RAMTEKE
 # ============================================================
 # APPLICATION STATE
 # ============================================================
@@ -640,10 +736,14 @@ loading_angle = 0
 history_data = []
 last_proxy_url = ""
 
+# ============================================================
+# IMAGE MANAGER STATE
+# ============================================================
+
+image_manager_data = []
+
 background_logo_image = None
 background_logo_tk = None
-
-
 # ============================================================
 # GOOGLE DRIVE FILE ID
 # ============================================================
@@ -948,6 +1048,338 @@ def download_image(
         index
     )
 
+# NEW CODE ADDED BY AVINASH
+# ============================================================
+# IMAGE MANAGER
+# ============================================================
+
+def add_image_to_manager(
+    drive_link,
+    proxy_link,
+    image_path,
+    status="ACTIVE"
+):
+    """
+    Adds a processed image to Image Manager.
+    """
+
+    image_data = {
+        "drive_link": drive_link,
+        "proxy_link": proxy_link,
+        "image_path": image_path,
+        "status": status
+    }
+
+    image_manager_data.append(
+        image_data
+    )
+        # Automatically refresh Image Manager
+    if (
+        image_manager_window is not None
+        and image_manager_window.winfo_exists()
+    ):
+        refresh_image_manager()
+
+# NEW CODE ADDED BELOW BY AVINASH RAMTEKE 
+# ============================================================
+# IMAGE MANAGER WINDOW
+# ============================================================
+
+image_manager_window = None
+image_manager_content = None
+image_manager_images = []
+
+
+def refresh_image_manager():
+    global image_manager_content
+    global image_manager_images
+
+    if image_manager_content is None:
+        return
+
+    # Clear existing cards
+    for widget in image_manager_content.winfo_children():
+        widget.destroy()
+
+    image_manager_images.clear()
+
+    if not image_manager_data:
+        empty_label = tk.Label(
+            image_manager_content,
+            text="No images in Image Manager yet.",
+            font=("Segoe UI", 12),
+            bg="#ffffff",
+            fg="#777777"
+        )
+        empty_label.pack(
+            pady=40
+        )
+        return
+
+    for index, item in enumerate(image_manager_data, start=1):
+
+        card = tk.Frame(
+            image_manager_content,
+            bg="#f8f9fa",
+            bd=1,
+            relief="solid"
+        )
+        card.pack(
+            fill="x",
+            padx=15,
+            pady=8
+        )
+
+        # ----------------------------------------------------
+        # Thumbnail
+        # ----------------------------------------------------
+
+        thumbnail_label = tk.Label(
+            card,
+            bg="#f8f9fa"
+        )
+        thumbnail_label.pack(
+            side="left",
+            padx=12,
+            pady=10
+        )
+
+        try:
+            image = Image.open(
+                item["image_path"]
+            )
+
+            image.thumbnail(
+                (100, 100)
+            )
+
+            thumbnail = ImageTk.PhotoImage(
+                image
+            )
+
+            thumbnail_label.configure(
+                image=thumbnail
+            )
+
+            image_manager_images.append(
+                thumbnail
+            )
+
+        except Exception:
+            thumbnail_label.configure(
+                text="No Preview",
+                width=12,
+                height=5,
+                fg="#999999"
+            )
+
+        # ----------------------------------------------------
+        # Information
+        # ----------------------------------------------------
+
+        info_frame = tk.Frame(
+            card,
+            bg="#f8f9fa"
+        )
+        info_frame.pack(
+            side="left",
+            fill="both",
+            expand=True,
+            padx=10,
+            pady=10
+        )
+
+        tk.Label(
+            info_frame,
+            text=f"Image {index}",
+            font=("Segoe UI", 11, "bold"),
+            bg="#f8f9fa",
+            fg="#222222"
+        ).pack(
+            anchor="w"
+        )
+
+        tk.Label(
+            info_frame,
+            text=f"Status: {item['status']}",
+            font=("Segoe UI", 9),
+            bg="#f8f9fa",
+            fg="#008000"
+        ).pack(
+            anchor="w",
+            pady=(4, 0)
+        )
+
+        tk.Label(
+            info_frame,
+            text=f"Drive: {item['drive_link']}",
+            font=("Segoe UI", 8),
+            bg="#f8f9fa",
+            fg="#555555",
+            wraplength=650,
+            justify="left"
+        ).pack(
+            anchor="w",
+            pady=(4, 0)
+        )
+
+        tk.Label(
+            info_frame,
+            text=f"Proxy: {item['proxy_link']}",
+            font=("Segoe UI", 8),
+            bg="#f8f9fa",
+            fg="#555555",
+            wraplength=650,
+            justify="left"
+        ).pack(
+            anchor="w",
+            pady=(2, 0)
+        )
+
+        tk.Label(
+            info_frame,
+            text=f"Saved: {item['image_path']}",
+            font=("Segoe UI", 8),
+            bg="#f8f9fa",
+            fg="#777777",
+            wraplength=650,
+            justify="left"
+        ).pack(
+            anchor="w",
+            pady=(2, 0)
+        )
+
+
+def open_image_manager():
+
+    global image_manager_window
+    global image_manager_content
+
+    # If already open, bring it to front
+    if (
+        image_manager_window is not None
+        and image_manager_window.winfo_exists()
+    ):
+        image_manager_window.lift()
+        image_manager_window.focus_force()
+        refresh_image_manager()
+        return
+
+    image_manager_window = tk.Toplevel(
+        root
+    )
+
+    image_manager_window.title(
+        "Image Manager"
+    )
+
+    image_manager_window.geometry(
+        "900x650"
+    )
+
+    image_manager_window.configure(
+        bg="#ffffff"
+    )
+
+    # --------------------------------------------------------
+    # Header
+    # --------------------------------------------------------
+
+    header = tk.Frame(
+        image_manager_window,
+        bg="#222222",
+        height=60
+    )
+
+    header.pack(
+        fill="x"
+    )
+
+    tk.Label(
+        header,
+        text="IMAGE MANAGER",
+        font=("Segoe UI", 16, "bold"),
+        bg="#222222",
+        fg="white"
+    ).pack(
+        side="left",
+        padx=20,
+        pady=15
+    )
+
+    tk.Button(
+        header,
+        text="Refresh",
+        font=("Segoe UI", 9, "bold"),
+        bg="#ffffff",
+        fg="#222222",
+        relief="flat",
+        command=refresh_image_manager
+    ).pack(
+        side="right",
+        padx=20
+    )
+
+    # --------------------------------------------------------
+    # Scrollable Area
+    # --------------------------------------------------------
+
+    outer_frame = tk.Frame(
+        image_manager_window,
+        bg="#ffffff"
+    )
+
+    outer_frame.pack(
+        fill="both",
+        expand=True
+    )
+
+    canvas = tk.Canvas(
+        outer_frame,
+        bg="#ffffff",
+        highlightthickness=0
+    )
+
+    scrollbar = ttk.Scrollbar(
+        outer_frame,
+        orient="vertical",
+        command=canvas.yview
+    )
+
+    image_manager_content = tk.Frame(
+        canvas,
+        bg="#ffffff"
+    )
+
+    image_manager_content.bind(
+        "<Configure>",
+        lambda event: canvas.configure(
+            scrollregion=canvas.bbox("all")
+        )
+    )
+
+    canvas.create_window(
+        (0, 0),
+        window=image_manager_content,
+        anchor="nw"
+    )
+
+    canvas.configure(
+        yscrollcommand=scrollbar.set
+    )
+
+    canvas.pack(
+        side="left",
+        fill="both",
+        expand=True
+    )
+
+    scrollbar.pack(
+        side="right",
+        fill="y"
+    )
+
+    refresh_image_manager()
 
 # ============================================================
 # GAURANGA CREATION BACKGROUND LOGO
@@ -1564,6 +1996,19 @@ def process_conversion(raw_text):
                     proxy,
                     "SUCCESS",
                     path
+                )
+            )
+
+            root.after(
+                0,
+                lambda link=drive_link,
+                proxy=proxy_url,
+                path=output_path:
+                add_image_to_manager(
+                    link,
+                    proxy,
+                    path,
+                    "ACTIVE"
                 )
             )
 
@@ -2453,6 +2898,23 @@ folder_button.pack(
     side="right"
 )
 
+#NEW CODE ADDED BELOW BY AVINASH RAMTEKE
+# ============================================================
+# IMAGE MANAGER BUTTON
+# ============================================================
+
+image_manager_button = make_button(
+    button_frame,
+    "Image Manager",
+    open_image_manager,
+    16
+)
+
+image_manager_button.pack(
+    side="right",
+    padx=7
+)
+
 
 # ============================================================
 # OUTPUT PANEL
@@ -2925,20 +3387,20 @@ def test_update_popup():
 
 
 # Test popup after 2 seconds
-root.after(2000, test_update_popup)
+# root.after(2000, test_update_popup)
 
-root.mainloop()
+# root.mainloop()
 # ============================================================
 # START APPLICATION
 # ============================================================
 
 
-# root.after(
-#     2000,
-#     lambda: threading.Thread(
-#         target=check_for_updates,
-#         daemon=True
-#     ).start()
-# )
+root.after(
+    2000,
+    lambda: threading.Thread(
+        target=check_for_updates,
+        daemon=True
+    ).start()
+)
 
-# root.mainloop()
+root.mainloop()
